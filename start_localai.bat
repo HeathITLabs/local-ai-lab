@@ -1,19 +1,40 @@
 @echo off
-setlocal
-REM Local AI Stack Launcher
-REM Starts the stack; defaults to GPU (NVIDIA) profile and private environment. Override with args: start_localai.bat [profile] [environment]
+setlocal EnableExtensions EnableDelayedExpansion
+REM Local AI Lab Launcher
+REM Starts the Docker stack from one BAT file.
+REM Defaults: no optional GPU profile, public environment for trusted LAN access.
+REM Override with args:
+REM   start_localai.bat [profile] [environment]
+REM Examples:
+REM   start_localai.bat
+REM   start_localai.bat cpu private
+REM   start_localai.bat none public
 
+set "LAB_DIR=E:\AI\local-ai-lab"
 set "SCRIPT_DIR=%~dp0"
-cd /d "%SCRIPT_DIR%"
+
+REM If the BAT lives in the lab folder, prefer its own location. This keeps copied
+REM launchers working while also supporting a Desktop shortcut or Desktop copy.
+if exist "%SCRIPT_DIR%start_services.py" set "LAB_DIR=%SCRIPT_DIR%"
+
+cd /d "%LAB_DIR%"
 
 set "PROFILE=%~1"
-if "%PROFILE%"=="" set "PROFILE=gpu-nvidia"
+if "%PROFILE%"=="" set "PROFILE=none"
 
 set "ENVIRONMENT=%~2"
-if "%ENVIRONMENT%"=="" set "ENVIRONMENT=private"
+if "%ENVIRONMENT%"=="" set "ENVIRONMENT=public"
 
 if not exist "start_services.py" (
-    echo ERROR: start_services.py not found in current directory!
+    echo ERROR: start_services.py not found.
+    echo Current directory: %CD%
+    echo Expected lab directory: %LAB_DIR%
+    pause
+    exit /b 1
+)
+
+if not exist "docker-compose.yml" (
+    echo ERROR: docker-compose.yml not found.
     echo Current directory: %CD%
     pause
     exit /b 1
@@ -21,10 +42,82 @@ if not exist "start_services.py" (
 
 echo Current directory: %CD%
 echo.
-echo Launching Local AI stack with profile "%PROFILE%" and environment "%ENVIRONMENT%"...
+echo Launching Local AI Lab with profile "%PROFILE%" and environment "%ENVIRONMENT%"...
 echo.
 
-python start_services.py --profile %PROFILE% --environment %ENVIRONMENT%
+docker info >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo Docker Desktop does not appear to be ready.
+    if exist "C:\Program Files\Docker\Docker\Docker Desktop.exe" (
+        echo Starting Docker Desktop...
+        start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+        echo Waiting for Docker Desktop to become ready...
+        for /l %%I in (1,1,60) do (
+            timeout /t 3 /nobreak >nul
+            docker info >nul 2>&1
+            if not errorlevel 1 goto docker_ready
+        )
+    )
+    echo.
+    echo ERROR: Docker is not ready. Start Docker Desktop and run this again.
+    pause
+    exit /b 1
+)
+
+:docker_ready
+
+if exist "E:\AI\solo\.git" (
+    where git >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Git is required to update the Solo dev branch.
+        pause
+        exit /b 1
+    )
+
+    set "SOLO_BRANCH="
+    for /f "delims=" %%B in ('git -C "E:\AI\solo" branch --show-current') do set "SOLO_BRANCH=%%B"
+    if /i not "!SOLO_BRANCH!"=="dev" (
+        echo.
+        echo ERROR: E:\AI\solo must be on branch "dev".
+        echo Switch branches or preserve your current work before running this launcher.
+        pause
+        exit /b 1
+    )
+
+    echo Updating Solo from origin/dev using fast-forward only...
+    git -C "E:\AI\solo" pull --ff-only origin dev
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Could not fast-forward E:\AI\solo from origin/dev.
+        echo Resolve local changes or branch divergence, then run this launcher again.
+        pause
+        exit /b 1
+    )
+    echo.
+) else (
+    echo.
+    echo ERROR: E:\AI\solo is not a Git checkout.
+    pause
+    exit /b 1
+)
+
+if exist "E:\AI\solo\Dockerfile" (
+    echo Building Solo app image with the latest base image...
+    docker compose -p localai --profile "%PROFILE%" -f docker-compose.yml build --pull solo
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Failed to build Solo app image.
+        pause
+        exit /b 1
+    )
+    echo.
+) else (
+    echo WARNING: E:\AI\solo\Dockerfile not found. Solo build may fail.
+    echo.
+)
+
+python start_services.py --profile "%PROFILE%" --environment "%ENVIRONMENT%"
 
 if %ERRORLEVEL% neq 0 (
     echo.
@@ -33,6 +126,16 @@ if %ERRORLEVEL% neq 0 (
 ) else (
     echo.
     echo Services started successfully!
+    echo.
+    echo Access URLs:
+    echo   Solo:       http://localhost:3050
+    echo   Solo:       http://192.168.1.139:3050
+    echo   Open WebUI: http://192.168.1.139:3190
+    echo   n8n:        http://192.168.1.139:5678
+    echo   Flowise:    http://192.168.1.139:3001
+    echo   SearXNG:    http://192.168.1.139:8081
+    echo.
+    echo These URLs are available to clients on the trusted LAN.
     echo.
 )
 

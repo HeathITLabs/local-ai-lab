@@ -3,7 +3,7 @@
 start_services.py
 
 Start the local AI stack defined in the docker-compose files. Supports optional GPU
-profiles and a "private" mode that binds service ports to localhost.
+profiles, a LAN-accessible "public" mode, and a localhost-only "private" mode.
 """
 
 import os
@@ -24,16 +24,6 @@ def compose_file_args(environment: str):
         files.extend(["-f", "docker-compose.override.public.yml"])
     return files
 
-def stop_existing_containers(profile=None, environment="private"):
-    print("Stopping and removing existing containers for project 'localai'...")
-    cmd = ["docker", "compose", "-p", "localai"]
-    if profile and profile != "none":
-        cmd.extend(["--profile", profile])
-    cmd.extend(compose_file_args(environment))
-    cmd.append("down")
-    run_command(cmd)
-
-
 def run_command(cmd, cwd=None):
     """Run a shell command and print it."""
     print("Running:", " ".join(cmd))
@@ -50,7 +40,7 @@ def start_local_ai(profile=None, environment=None):
         cmd.extend(["-f", "docker-compose.override.private.yml"])
     if environment and environment == "public":
         cmd.extend(["-f", "docker-compose.override.public.yml"])
-    cmd.extend(["up", "-d"])
+    cmd.extend(["up", "-d", "--remove-orphans"])
     run_command(cmd)
 
 def generate_searxng_secret_key():
@@ -197,8 +187,8 @@ def main():
     parser = argparse.ArgumentParser(description='Start the local AI services.')
     parser.add_argument('--profile', choices=['cpu', 'gpu-nvidia', 'gpu-amd', 'none'], default='cpu',
                         help='Profile to use for Docker Compose (default: cpu)')
-    parser.add_argument('--environment', choices=['private', 'public'], default='private',
-                        help='Environment to use for Docker Compose (default: private)')
+    parser.add_argument('--environment', choices=['private', 'public'], default='public',
+                        help='Environment to use for Docker Compose (default: public)')
     args = parser.parse_args()
 
     os.chdir(ROOT)  # ensure repo root
@@ -206,9 +196,6 @@ def main():
     # optional helpers you already have
     generate_searxng_secret_key()
     check_and_fix_docker_compose_for_searxng()
-
-    # stop with the SAME -f set we will use for up
-    stop_existing_containers(args.profile, args.environment)
 
     # quick validation to catch path issues early
     print("Validating merged docker compose config...")
@@ -219,13 +206,24 @@ def main():
     cfg.append("config")
     run_command(cfg)
 
+    # Pull registry-backed services explicitly. Build-only services are handled
+    # by the launcher's `build --pull` commands.
+    print("Pulling the latest registry images for the selected profile...")
+    pull = ["docker", "compose", "-p", "localai"]
+    if args.profile and args.profile != "none":
+        pull.extend(["--profile", args.profile])
+    pull.extend(compose_file_args(args.environment))
+    pull.extend(["pull", "--policy", "always", "--ignore-buildable"])
+    run_command(pull)
+
     # start everything together (one network/project)
     print("Starting local AI stack...")
     up = ["docker", "compose", "-p", "localai"]
     if args.profile and args.profile != "none":
         up.extend(["--profile", args.profile])
     up.extend(compose_file_args(args.environment))
-    up.extend(["up", "-d"])
+    # Images were pulled explicitly above; avoid a second registry check here.
+    up.extend(["up", "-d", "--remove-orphans", "--pull", "never"])
     run_command(up)
 
 if __name__ == "__main__":
