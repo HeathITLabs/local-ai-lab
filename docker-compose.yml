@@ -117,7 +117,7 @@ services:
       - SOLO_BACKUP_SETTINGS_PATH=/data/solo/db/database-backup-settings.json
       - SOLO_BACKUPS_PATH=/data/solo/backups
       - SOLO_LOG_DIR=/data/solo/logs
-      - LOCAL_LLM_BASE_URL=http://ollama:11434
+      - LOCAL_LLM_BASE_URL=http://host.docker.internal:1234
       - LLM_PROVIDER=local
       - LLM_MODEL=qwen2.5:7b-instruct-q4_K_M
       - STABLE_DIFFUSION_URL=http://comfyui-host:8188
