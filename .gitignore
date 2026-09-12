@@ -7,3 +7,7 @@ shared-backup/
 searxng/settings.yml
 searxng/uwsgi*
 *fuckit
+# Local credentials; commit examples only.
+.env.local-ai-lab
+.env.*
+!.env.local-ai-lab.example

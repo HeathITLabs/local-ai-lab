@@ -89,7 +89,7 @@ services:
       - open-webui:/app/backend/data
   solo:
     build:
-      context: D:/AI/solo
+      context: ../solo
       dockerfile: Dockerfile
     container_name: solo
     restart: unless-stopped
@@ -131,11 +131,11 @@ services:
       - NEO4J_DATABASE=neo4j
       - ENABLE_NEO4J=true
     volumes:
-      - D:/AI/solo/data/db:/data/solo/db
-      - D:/AI/solo-data/images:/data/solo/images
-      - D:/AI/solo-data/attachments:/data/solo/attachments
-      - D:/AI/solo-data/backups:/data/solo/backups
-      - D:/AI/solo-data/logs:/data/solo/logs
+      - ../solo/data/db:/data/solo/db
+      - ../solo-data/images:/data/solo/images
+      - ../solo-data/attachments:/data/solo/attachments
+      - ../solo-data/backups:/data/solo/backups
+      - ../solo-data/logs:/data/solo/logs
     depends_on:
       solo-postgres:
         condition: service_healthy
@@ -275,7 +275,7 @@ services:
         max-file: "1"
   langfuse-minio:
     labels: *id001
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     pull_policy: always
     container_name: langfuse-minio
     restart: unless-stopped
@@ -416,7 +416,7 @@ services:
       - neo4j:127.0.0.1
     volumes:
       - neo4j-data:/data
-      - ./neo4j/logs:/logs
+      - ./neo4j../solo-data/logs:/logs
       - ./neo4j/plugins:/plugins
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-your_password}
