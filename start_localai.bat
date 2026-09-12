@@ -10,13 +10,10 @@ REM   start_localai.bat
 REM   start_localai.bat cpu private
 REM   start_localai.bat none public
 
-set "LAB_DIR=E:\AI\local-ai-lab"
-set "SCRIPT_DIR=%~dp0"
-
-REM If the BAT lives in the lab folder, prefer its own location. This keeps copied
-REM launchers working while also supporting a Desktop shortcut or Desktop copy.
-if exist "%SCRIPT_DIR%start_services.py" set "LAB_DIR=%SCRIPT_DIR%"
-
+REM Keep this launcher in local-ai-lab; shortcuts should target it.
+set "LAB_DIR=%~dp0"
+for %%I in ("%LAB_DIR%..") do set "AI_ROOT=%%~fI"
+if not defined SOLO_REPO_ROOT set "SOLO_REPO_ROOT=%AI_ROOT%\solo"
 cd /d "%LAB_DIR%"
 
 set "PROFILE=%~1"
@@ -66,7 +63,33 @@ if %ERRORLEVEL% neq 0 (
 
 :docker_ready
 
-if exist "E:\AI\solo\.git" (
+REM Refuse updates unless the existing Solo database has a verified checkpoint.
+set "SOLO_CONTAINER="
+for /f "delims=" %%C in ('docker ps -a --filter "name=^/solo-postgres$" --format "{{.Names}}"') do set "SOLO_CONTAINER=%%C"
+if errorlevel 1 (
+    echo BACKUP_FAILED: could not inspect Docker containers.
+    exit /b 1
+)
+if "!SOLO_CONTAINER!"=="" (
+    set "SOLO_VOLUME="
+    for /f "delims=" %%V in ('docker volume ls --filter "name=^localai_solo-postgres-data$" --format "{{.Name}}"') do set "SOLO_VOLUME=%%V"
+    if errorlevel 1 (
+        echo BACKUP_FAILED: could not inspect Docker volumes.
+        exit /b 1
+    )
+    if not "!SOLO_VOLUME!"=="" (
+        echo BACKUP_FAILED: Solo volume exists but postgres container is missing.
+        exit /b 1
+    )
+    echo FIRST_RUN_NO_DATABASE: no Solo container or volume found.
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%LAB_DIR%\scripts\backup-local-ai.ps1" -Backup Solo
+    if errorlevel 1 (
+        echo BACKUP_FAILED: refusing to update the environment.
+        exit /b 1
+    )
+)
+if exist "%SOLO_REPO_ROOT%\.git" (
     where git >nul 2>&1
     if errorlevel 1 (
         echo.
@@ -76,20 +99,20 @@ if exist "E:\AI\solo\.git" (
     )
 
     set "SOLO_BRANCH="
-    for /f "delims=" %%B in ('git -C "E:\AI\solo" branch --show-current') do set "SOLO_BRANCH=%%B"
+    for /f "delims=" %%B in ('git -C "%SOLO_REPO_ROOT%" branch --show-current') do set "SOLO_BRANCH=%%B"
     if /i not "!SOLO_BRANCH!"=="dev" (
         echo.
-        echo ERROR: E:\AI\solo must be on branch "dev".
+        echo ERROR: %SOLO_REPO_ROOT% must be on branch "dev".
         echo Switch branches or preserve your current work before running this launcher.
         pause
         exit /b 1
     )
 
     echo Updating Solo from origin/dev using fast-forward only...
-    git -C "E:\AI\solo" pull --ff-only origin dev
+    git -C "%SOLO_REPO_ROOT%" pull --ff-only origin dev
     if errorlevel 1 (
         echo.
-        echo ERROR: Could not fast-forward E:\AI\solo from origin/dev.
+        echo ERROR: Could not fast-forward %SOLO_REPO_ROOT% from origin/dev.
         echo Resolve local changes or branch divergence, then run this launcher again.
         pause
         exit /b 1
@@ -97,12 +120,12 @@ if exist "E:\AI\solo\.git" (
     echo.
 ) else (
     echo.
-    echo ERROR: E:\AI\solo is not a Git checkout.
+    echo ERROR: %SOLO_REPO_ROOT% is not a Git checkout.
     pause
     exit /b 1
 )
 
-if exist "E:\AI\solo\Dockerfile" (
+if exist "%SOLO_REPO_ROOT%\Dockerfile" (
     echo Building Solo app image with the latest base image...
     docker compose -p localai --profile "%PROFILE%" -f docker-compose.yml build --pull solo
     if errorlevel 1 (
@@ -113,7 +136,7 @@ if exist "E:\AI\solo\Dockerfile" (
     )
     echo.
 ) else (
-    echo WARNING: E:\AI\solo\Dockerfile not found. Solo build may fail.
+    echo WARNING: %SOLO_REPO_ROOT%\Dockerfile not found. Solo build may fail.
     echo.
 )
 
