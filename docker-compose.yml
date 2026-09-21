@@ -120,7 +120,7 @@ services:
       - LOCAL_LLM_BASE_URL=http://host.docker.internal:1234
       - LOCAL_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
       - LLM_PROVIDER=local
-      - LLM_MODEL=local-model
+      - LLM_MODEL=qwable-9b-claude-fable-5-obliterated-i1
       - STABLE_DIFFUSION_URL=http://comfyui-host:8188
       - STABLE_DIFFUSION_PROVIDER=comfyui
       - QDRANT_URL=http://qdrant:6333
@@ -132,7 +132,9 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-your_password}
       - NEO4J_DATABASE=neo4j
       - ENABLE_NEO4J=true
-    volumes:
+      - SERIES_EDITOR_MODEL: ${SERIES_EDITOR_MODEL:-}
+      - BOOK_AGENT_MODEL: ${BOOK_AGENT_MODEL:-}
+      - CANON_AUDIT_MODEL: ${CANON_AUDIT_MODEL:-}
       - ../solo/data/db:/data/solo/db
       - ../solo-data/images:/data/solo/images
       - ../solo-data/attachments:/data/solo/attachments
@@ -276,7 +278,7 @@ services:
         max-file: "1"
   langfuse-minio:
     labels: *id001
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     pull_policy: always
     container_name: langfuse-minio
     restart: unless-stopped
