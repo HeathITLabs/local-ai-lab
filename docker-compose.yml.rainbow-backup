@@ -89,7 +89,7 @@ services:
       - open-webui:/app/backend/data
   solo:
     build:
-      context: ../solo
+      context: E:/AI/solo
       dockerfile: Dockerfile
     container_name: solo
     restart: unless-stopped
@@ -117,13 +117,11 @@ services:
       - SOLO_BACKUP_SETTINGS_PATH=/data/solo/db/database-backup-settings.json
       - SOLO_BACKUPS_PATH=/data/solo/backups
       - SOLO_LOG_DIR=/data/solo/logs
-      - LOCAL_LLM_BASE_URL=http://host.docker.internal:1234
-      - LOCAL_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
+      - LOCAL_LLM_BASE_URL=http://ollama:11434
       - LLM_PROVIDER=local
-      - LLM_MODEL=qwable-9b-claude-fable-5-obliterated-i1
+      - LLM_MODEL=qwen2.5:7b-instruct-q4_K_M
       - STABLE_DIFFUSION_URL=http://comfyui-host:8188
       - STABLE_DIFFUSION_PROVIDER=comfyui
-      - QDRANT_URL=http://qdrant:6333
       - LANGFUSE_HOST=http://langfuse:3000
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:?LANGFUSE_PUBLIC_KEY is required}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:?LANGFUSE_SECRET_KEY is required}
@@ -132,15 +130,12 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-your_password}
       - NEO4J_DATABASE=neo4j
       - ENABLE_NEO4J=true
-      - SERIES_EDITOR_MODEL=${SERIES_EDITOR_MODEL:-}
-      - BOOK_AGENT_MODEL=${BOOK_AGENT_MODEL:-}
-      - CANON_AUDIT_MODEL=${CANON_AUDIT_MODEL:-}
     volumes:
-      - ../solo/data/db:/data/solo/db
-      - ../solo-data/images:/data/solo/images
-      - ../solo-data/attachments:/data/solo/attachments
-      - ../solo-data/backups:/data/solo/backups
-      - ../solo-data/logs:/data/solo/logs
+      - E:/AI/solo/data/db:/data/solo/db
+      - E:/AI/solo-data/images:/data/solo/images
+      - E:/AI/solo-data/attachments:/data/solo/attachments
+      - E:/AI/solo-data/backups:/data/solo/backups
+      - E:/AI/solo-data/logs:/data/solo/logs
     depends_on:
       solo-postgres:
         condition: service_healthy
@@ -150,6 +145,7 @@ services:
         condition: service_healthy
     extra_hosts:
       - host.docker.internal:host-gateway
+      - ollama:host-gateway
       - comfyui-host:host-gateway
     healthcheck:
       test:
@@ -279,7 +275,7 @@ services:
         max-file: "1"
   langfuse-minio:
     labels: *id001
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: minio/minio:latest
     pull_policy: always
     container_name: langfuse-minio
     restart: unless-stopped

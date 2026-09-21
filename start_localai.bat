@@ -83,7 +83,7 @@ if "!SOLO_CONTAINER!"=="" (
     )
     echo FIRST_RUN_NO_DATABASE: no Solo container or volume found.
 ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%LAB_DIR%\scripts\backup-local-ai.ps1" -Backup Solo
+    powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%LAB_DIR%\scripts\backup-local-ai.ps1" -Backup Solo
     if errorlevel 1 (
         echo BACKUP_FAILED: refusing to update the environment.
         exit /b 1

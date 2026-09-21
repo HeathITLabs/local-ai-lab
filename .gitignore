@@ -11,6 +11,5 @@ searxng/uwsgi*
 .env.local-ai-lab
 .env.*
 !.env.local-ai-lab.example
-
 __pycache__/
 *.pyc
