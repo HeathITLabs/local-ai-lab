@@ -208,12 +208,12 @@ def main():
 
     # Pull registry-backed services explicitly. Build-only services are handled
     # by the launcher's `build --pull` commands.
-    print("Pulling the latest registry images for the selected profile...")
+    print("Pulling registry images for the selected profile when missing locally...")
     pull = ["docker", "compose", "-p", "localai"]
     if args.profile and args.profile != "none":
         pull.extend(["--profile", args.profile])
     pull.extend(compose_file_args(args.environment))
-    pull.extend(["pull", "--policy", "always", "--ignore-buildable"])
+    pull.extend(["pull", "--policy", "missing", "--ignore-buildable"])    
     run_command(pull)
 
     # start everything together (one network/project)

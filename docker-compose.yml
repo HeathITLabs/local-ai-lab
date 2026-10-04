@@ -120,7 +120,8 @@ services:
       - LOCAL_LLM_BASE_URL=http://host.docker.internal:1234
       - LOCAL_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
       - LLM_PROVIDER=local
-      - LLM_MODEL=qwable-9b-claude-fable-5-obliterated-i1
+      - LLM_MODEL=qwen3.5-9b
+      - LLM_CONTEXT_WINDOW=12288
       - STABLE_DIFFUSION_URL=http://comfyui-host:8188
       - STABLE_DIFFUSION_PROVIDER=comfyui
       - QDRANT_URL=http://qdrant:6333
