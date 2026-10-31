@@ -103,7 +103,13 @@ try {
 finally{
   & docker exec solo-postgres rm -f $containerTemp *> $null
   if($started){& docker rm -f $validator *> $null}
-  if(Test-Path (Split-Path $manifestPath)){$manifest|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $manifestPath -Encoding UTF8}
+  if(Test-Path (Split-Path $manifestPath)){
+    # Publish complete JSON atomically on the same filesystem.
+    $pending=$manifestPath+'.pending'
+    $manifest|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $pending -Encoding UTF8
+    if(Test-Path -LiteralPath $manifestPath){[IO.File]::Replace($pending,$manifestPath,[NullString]::Value)}
+    else{[IO.File]::Move($pending,$manifestPath)}
+  }
 }
 Write-Output "SOLO_POSTGRES_BACKUP=$pg"
 Write-Output "SOLO_SQLITE_SNAPSHOT=$sqlite"
