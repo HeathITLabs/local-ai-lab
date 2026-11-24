@@ -89,56 +89,70 @@ if "!SOLO_CONTAINER!"=="" (
         exit /b 1
     )
 )
-if exist "%SOLO_REPO_ROOT%\.git" (
-    where git >nul 2>&1
-    if errorlevel 1 (
-        echo.
-        echo ERROR: Git is required to update the Solo dev branch.
-        pause
-        exit /b 1
-    )
-
-    set "SOLO_BRANCH="
-    for /f "delims=" %%B in ('git -C "%SOLO_REPO_ROOT%" branch --show-current') do set "SOLO_BRANCH=%%B"
-    if /i not "!SOLO_BRANCH!"=="dev" (
-        echo.
-        echo ERROR: %SOLO_REPO_ROOT% must be on branch "dev".
-        echo Switch branches or preserve your current work before running this launcher.
-        pause
-        exit /b 1
-    )
-
-    echo Updating Solo from origin/dev using fast-forward only...
-    git -C "%SOLO_REPO_ROOT%" pull --ff-only origin dev
-    if errorlevel 1 (
-        echo.
-        echo ERROR: Could not fast-forward %SOLO_REPO_ROOT% from origin/dev.
-        echo Resolve local changes or branch divergence, then run this launcher again.
-        pause
-        exit /b 1
-    )
-    echo.
-) else (
+REM Production Solo is built from the latest release tag (vX.Y.Z), never from dev.
+REM The tag is checked out as a detached worktree of the Solo repo, so the dev
+REM checkout in SOLO_REPO_ROOT is never touched and never blocks a launch.
+if not defined SOLO_RELEASE_ROOT set "SOLO_RELEASE_ROOT=%AI_ROOT%\solo-release"
+if not exist "%SOLO_REPO_ROOT%\.git" (
     echo.
     echo ERROR: %SOLO_REPO_ROOT% is not a Git checkout.
     pause
     exit /b 1
 )
-
-if exist "%SOLO_REPO_ROOT%\Dockerfile" (
-    echo Building Solo app image with the latest base image...
-    docker compose -p localai --profile "%PROFILE%" -f docker-compose.yml build --pull solo
-    if errorlevel 1 (
-        echo.
-        echo ERROR: Failed to build Solo app image.
-        pause
-        exit /b 1
-    )
+where git >nul 2>&1
+if errorlevel 1 (
     echo.
-) else (
-    echo WARNING: %SOLO_REPO_ROOT%\Dockerfile not found. Solo build may fail.
-    echo.
+    echo ERROR: Git is required to check out the Solo release.
+    pause
+    exit /b 1
 )
+
+echo Fetching Solo release tags...
+git -C "%SOLO_REPO_ROOT%" fetch --tags --force origin
+if errorlevel 1 (
+    echo.
+    echo ERROR: Could not fetch Solo release tags from origin.
+    pause
+    exit /b 1
+)
+
+set "SOLO_RELEASE_TAG="
+for /f "delims=" %%T in ('git -C "%SOLO_REPO_ROOT%" tag --list "v*" --sort=-v:refname') do (
+    if not defined SOLO_RELEASE_TAG set "SOLO_RELEASE_TAG=%%T"
+)
+if not defined SOLO_RELEASE_TAG (
+    echo.
+    echo ERROR: Solo has no release tag ^(v*^). Cut a release first ^(docs/RELEASING.md^).
+    pause
+    exit /b 1
+)
+
+if exist "%SOLO_RELEASE_ROOT%\.git" (
+    git -C "%SOLO_RELEASE_ROOT%" checkout --quiet --detach "!SOLO_RELEASE_TAG!"
+) else (
+    git -C "%SOLO_REPO_ROOT%" worktree add --detach "%SOLO_RELEASE_ROOT%" "!SOLO_RELEASE_TAG!"
+)
+if errorlevel 1 (
+    echo.
+    echo ERROR: Could not check out Solo !SOLO_RELEASE_TAG! in %SOLO_RELEASE_ROOT%.
+    echo That folder is a release checkout: discard any local changes in it and run this again.
+    pause
+    exit /b 1
+)
+echo Solo release: !SOLO_RELEASE_TAG!
+echo.
+
+REM docker-compose.yml reads SOLO_BUILD_CONTEXT; start_services.py inherits it.
+set "SOLO_BUILD_CONTEXT=%SOLO_RELEASE_ROOT%"
+echo Building Solo !SOLO_RELEASE_TAG! with the latest base image...
+docker compose -p localai --profile "%PROFILE%" -f docker-compose.yml build --pull solo
+if errorlevel 1 (
+    echo.
+    echo ERROR: Failed to build Solo app image.
+    pause
+    exit /b 1
+)
+echo.
 
 python start_services.py --profile "%PROFILE%" --environment "%ENVIRONMENT%"
 

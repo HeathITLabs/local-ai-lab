@@ -89,7 +89,7 @@ services:
       - open-webui:/app/backend/data
   solo:
     build:
-      context: ../solo
+      context: ${SOLO_BUILD_CONTEXT:-../solo}
       dockerfile: Dockerfile
     container_name: solo
     restart: unless-stopped
