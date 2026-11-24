@@ -140,6 +140,7 @@ services:
       - ../solo/data/db:/data/solo/db
       - ../solo-data/images:/data/solo/images
       - ../solo-data/attachments:/data/solo/attachments
+      - ../solo-data/publishing:/data/solo/publishing:ro
       - ../solo-data/backups:/data/solo/backups
       - ../solo-data/logs:/data/solo/logs
     depends_on:
