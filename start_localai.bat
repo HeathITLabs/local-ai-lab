@@ -89,62 +89,17 @@ if "!SOLO_CONTAINER!"=="" (
         exit /b 1
     )
 )
-REM Production Solo is built from the latest release tag (vX.Y.Z), never from dev.
-REM The tag is checked out as a detached worktree of the Solo repo, so the dev
-REM checkout in SOLO_REPO_ROOT is never touched and never blocks a launch.
-if not defined SOLO_RELEASE_ROOT set "SOLO_RELEASE_ROOT=%AI_ROOT%\solo-release"
-if not exist "%SOLO_REPO_ROOT%\.git" (
+REM Solo is built from the working checkout in SOLO_REPO_ROOT (F:\AI\solo):
+REM whatever is checked out there runs. One developer, test data only.
+if not exist "%SOLO_REPO_ROOT%\Dockerfile" if not exist "%SOLO_REPO_ROOT%\package.json" (
     echo.
-    echo ERROR: %SOLO_REPO_ROOT% is not a Git checkout.
+    echo ERROR: %SOLO_REPO_ROOT% does not look like the Solo repository.
     pause
     exit /b 1
 )
-where git >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo ERROR: Git is required to check out the Solo release.
-    pause
-    exit /b 1
-)
-
-echo Fetching Solo release tags...
-git -C "%SOLO_REPO_ROOT%" fetch --tags --force origin
-if errorlevel 1 (
-    echo.
-    echo ERROR: Could not fetch Solo release tags from origin.
-    pause
-    exit /b 1
-)
-
-set "SOLO_RELEASE_TAG="
-for /f "delims=" %%T in ('git -C "%SOLO_REPO_ROOT%" tag --list "v*" --sort=-v:refname') do (
-    if not defined SOLO_RELEASE_TAG set "SOLO_RELEASE_TAG=%%T"
-)
-if not defined SOLO_RELEASE_TAG (
-    echo.
-    echo ERROR: Solo has no release tag ^(v*^). Cut a release first ^(docs/RELEASING.md^).
-    pause
-    exit /b 1
-)
-
-if exist "%SOLO_RELEASE_ROOT%\.git" (
-    git -C "%SOLO_RELEASE_ROOT%" checkout --quiet --detach "!SOLO_RELEASE_TAG!"
-) else (
-    git -C "%SOLO_REPO_ROOT%" worktree add --detach "%SOLO_RELEASE_ROOT%" "!SOLO_RELEASE_TAG!"
-)
-if errorlevel 1 (
-    echo.
-    echo ERROR: Could not check out Solo !SOLO_RELEASE_TAG! in %SOLO_RELEASE_ROOT%.
-    echo That folder is a release checkout: discard any local changes in it and run this again.
-    pause
-    exit /b 1
-)
-echo Solo release: !SOLO_RELEASE_TAG!
-echo.
-
 REM docker-compose.yml reads SOLO_BUILD_CONTEXT; start_services.py inherits it.
-set "SOLO_BUILD_CONTEXT=%SOLO_RELEASE_ROOT%"
-echo Building Solo !SOLO_RELEASE_TAG! with the latest base image...
+set "SOLO_BUILD_CONTEXT=%SOLO_REPO_ROOT%"
+echo Building Solo from %SOLO_REPO_ROOT% with the latest base image...
 docker compose -p localai --profile "%PROFILE%" -f docker-compose.yml build --pull solo
 if errorlevel 1 (
     echo.
