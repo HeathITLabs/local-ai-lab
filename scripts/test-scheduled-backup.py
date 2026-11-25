@@ -32,12 +32,6 @@ else:
         if n<=int(os.environ.get('BACKUP_FIXTURE_FAILURES','0')):
             print('pg_isready exit 2: no response',file=sys.stderr); sys.exit(2)
 '''
-EXPORT = r'''
-import json,pathlib,sys
-args=sys.argv
-pathlib.Path(args[args.index('--output')+1]).write_bytes(b'fixture SQLite')
-pathlib.Path(args[args.index('--manifest')+1]).write_text(json.dumps({'status':'PASS','tables':[]}))
-'''
 
 @unittest.skipUnless('postgres-backup-snapshot.py' in (SCRIPTS/'backup-local-ai.ps1').read_text(),
                      'Requires the diagnosed snapshot-based backup implementation')
@@ -48,7 +42,6 @@ class WrapperTests(unittest.TestCase):
             for name in ('run-scheduled-backup.ps1','backup-local-ai.ps1'):
                 shutil.copyfile(SCRIPTS/name,scripts/name)
             (scripts/'postgres-backup-snapshot.py').write_text(HELPER)
-            (scripts/'export-postgres-archive.py').write_text(EXPORT)
             env=dict(os.environ,BACKUP_FIXTURE_ROOT=tmp,BACKUP_FIXTURE_FAILURES=str(failures))
             backup=root/'backups'
             process=subprocess.Popen(['powershell.exe','-NoProfile','-File',str(scripts/'run-scheduled-backup.ps1'),'-BackupRoot',str(backup),'-PreserveExistingBackups'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=env)
@@ -57,7 +50,8 @@ class WrapperTests(unittest.TestCase):
                 while process.poll() is None:
                     if time.monotonic()>deadline: raise TimeoutError('Wrapper fixture exceeded bound')
                     for record in (backup/'manifests').glob('solo-20*.json'):
-                        content=record.read_text(encoding='utf-8-sig')
+                        try: content=record.read_text(encoding='utf-8-sig')
+                        except (PermissionError,FileNotFoundError): continue # Windows atomic replace in progress; retry next poll.
                         if content: json.loads(content) # Readers must never see partially serialized JSON.
                     time.sleep(.01)
                 stdout,stderr=process.communicate(timeout=5)
@@ -78,7 +72,7 @@ class WrapperTests(unittest.TestCase):
             if failures>=40:
                 self.assertNotEqual(result.returncode,0,logs)
                 self.assertEqual(manifest['status'],'FAIL')
-                self.assertEqual(manifest['validation'],dict(dump='PASS',restore='FAIL',sqlite='INCOMPLETE'))
+                self.assertEqual(manifest['validation'],dict(dump='PASS',restore='FAIL'))
                 self.assertIn('Validation database not ready',manifest['error'])
             else:
                 self.assertEqual(result.returncode,0,logs+result.stderr)
