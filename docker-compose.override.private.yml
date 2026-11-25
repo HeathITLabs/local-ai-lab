@@ -1,10 +1,26 @@
+# Private = this machine only (127.0.0.1). Same port numbers as the public override.
+# Studio's LAN check in `studio status` (http://rainbow:4250) reports NOT READY in this mode.
 services:
+  solo:
+    ports:
+    - 127.0.0.1:3050:3050
+  studio:
+    ports:
+    - 127.0.0.1:4250:4250
+  solo-postgres:
+    ports:
+    - 127.0.0.1:5437:5432
+  open-webui:
+    ports:
+    - 127.0.0.1:3190:8080
+    environment:
+    - WEBUI_URL=http://localhost:3190
+  langfuse:
+    ports:
+    - 127.0.0.1:3000:3000
   flowise:
     ports:
     - 127.0.0.1:3001:3001
-  open-webui:
-    ports:
-    - 127.0.0.1:8080:8080
   n8n:
     ports:
     - 127.0.0.1:5678:5678

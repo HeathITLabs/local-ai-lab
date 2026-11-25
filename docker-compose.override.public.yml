@@ -1,4 +1,21 @@
+# Public = reachable from the trusted LAN as http://rainbow:<port>.
+# All host ports for the stack are declared here (see the note in docker-compose.yml).
 services:
+  solo:
+    ports:
+    - 3050:3050
+  studio:
+    ports:
+    - 4250:4250
+  solo-postgres:
+    ports:
+    - 5437:5432
+  open-webui:
+    ports:
+    - 3190:8080
+  langfuse:
+    ports:
+    - 3000:3000
   flowise:
     ports:
     - 3001:3001
@@ -25,6 +42,8 @@ services:
     - SEARXNG_BASE_URL=http://rainbow:8081/
   caddy:
     ports:
+    - 80:80/tcp
+    - 443:443/tcp
     - 8001:8001
     - 8002:8002
     - 8003:8003

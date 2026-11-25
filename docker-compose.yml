@@ -1,5 +1,10 @@
-# Local AI Lab compose. Ollama and ComfyUI run natively on Windows.
+# Local AI Lab compose. Ollama, ComfyUI and LM Studio run natively on Windows.
 # Containers reach them through Docker host-gateway aliases.
+#
+# Host ports live ONLY in docker-compose.override.public.yml (LAN) and
+# docker-compose.override.private.yml (127.0.0.1). Compose appends port lists across
+# files, so a port published here could never be narrowed by the private override.
+# Run through studio.cmd / start_localai.bat, which always add one override.
 
 name: localai
 volumes:
@@ -18,13 +23,12 @@ volumes:
   langfuse-db: null
   neo4j-data: null
 x-watchtower-labels:
-  labels: &id001
+  labels: &watchtower-labels
     - com.centurylinklabs.watchtower.enable=true
-x-n8n:
-  labels: *id001
+x-n8n: &n8n-base
+  labels: *watchtower-labels
   image: n8nio/n8n:latest
-  pull_policy: always
-  environment: &id002
+  environment:
     - DB_TYPE=sqlite
     - N8N_DIAGNOSTICS_ENABLED=false
     - N8N_PERSONALIZATION_ENABLED=false
@@ -35,7 +39,6 @@ x-n8n:
 services:
   watchtower:
     image: containrrr/watchtower:latest
-    pull_policy: always
     container_name: watchtower
     restart: unless-stopped
     profiles:
@@ -54,17 +57,16 @@ services:
         max-size: 1m
         max-file: "1"
   flowise:
-    labels: *id001
+    labels: *watchtower-labels
     image: flowiseai/flowise
-    pull_policy: always
     restart: unless-stopped
     container_name: flowise
     expose:
       - 3001/tcp
     environment:
       - PORT=3001
-      - FLOWISE_USERNAME=${FLOWISE_USERNAME}
-      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
+      - FLOWISE_USERNAME=${FLOWISE_USERNAME:-}
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD:-}
     extra_hosts:
       - host.docker.internal:host-gateway
       - ollama:host-gateway
@@ -72,18 +74,16 @@ services:
       - ~/.flowise:/root/.flowise
     entrypoint: /bin/sh -c "sleep 3; flowise start"
   open-webui:
-    labels: *id001
+    labels: *watchtower-labels
     image: ghcr.io/open-webui/open-webui:main
-    pull_policy: always
     restart: unless-stopped
     container_name: open-webui
-    ports:
-      - 3190:8080
     extra_hosts:
       - host.docker.internal:host-gateway
       - ollama:host-gateway
     environment:
-      - WEBUI_URL=http://192.168.1.139:3190
+      # Rainbow's Wi-Fi address is DHCP; use the host name, not an IP.
+      - WEBUI_URL=http://rainbow:3190
       - OLLAMA_BASE_URL=http://ollama:11434
     volumes:
       - open-webui:/app/backend/data
@@ -93,13 +93,8 @@ services:
       dockerfile: Dockerfile
     container_name: solo
     restart: unless-stopped
-    ports:
-      - 3050:3050
-    expose:
-      - 3050/tcp
     environment:
-      - NODE_ENV=production
-      - PORT=3050
+      # NODE_ENV, PORT and the /data/solo/* paths come from Solo's Dockerfile ENV.
       - ALLOWED_ORIGINS=*
       - LOG_LEVEL=info
       - DB_PROVIDER=postgres
@@ -108,15 +103,6 @@ services:
       - POSTGRES_DATABASE=solo
       - POSTGRES_USER=solo
       - POSTGRES_PASSWORD=solo
-      - SQLITE_PATH=/data/solo/db/solo.db
-      - SQLITE_EXPECTED_PATH=/data/solo/db/solo.db
-      - SQLITE_SCHEMA_PATH=/app/docs/sql/schema.sql
-      - SOLO_DATA_DIR=/data/solo/db
-      - STABLE_DIFFUSION_IMAGES=/data/solo/images
-      - SOLO_ATTACHMENTS_PATH=/data/solo/attachments
-      - SOLO_BACKUP_SETTINGS_PATH=/data/solo/db/database-backup-settings.json
-      - SOLO_BACKUPS_PATH=/data/solo/backups
-      - SOLO_LOG_DIR=/data/solo/logs
       - LOCAL_LLM_BASE_URL=http://host.docker.internal:1234
       - LOCAL_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
       - LLM_PROVIDER=local
@@ -181,8 +167,6 @@ services:
       dockerfile: Dockerfile
     container_name: studio
     restart: unless-stopped
-    ports:
-      - 4250:4250
     environment:
       - NODE_ENV=production
       - STUDIO_API_PORT=4251
@@ -218,9 +202,8 @@ services:
         max-size: 10m
         max-file: "3"
   solo-postgres:
-    labels: *id001
+    labels: *watchtower-labels
     image: postgres:15-alpine
-    pull_policy: always
     container_name: solo-postgres
     restart: unless-stopped
     environment:
@@ -229,8 +212,6 @@ services:
       - POSTGRES_PASSWORD=solo
     volumes:
       - solo-postgres-data:/var/lib/postgresql/data
-    ports:
-      - 5437:5432
     expose:
       - 5432/tcp
     healthcheck:
@@ -246,9 +227,8 @@ services:
         max-size: 1m
         max-file: "1"
   langfuse-db:
-    labels: *id001
+    labels: *watchtower-labels
     image: postgres:15-alpine
-    pull_policy: always
     container_name: langfuse-db
     restart: unless-stopped
     environment:
@@ -272,9 +252,8 @@ services:
         max-size: 1m
         max-file: "1"
   clickhouse:
-    labels: *id001
+    labels: *watchtower-labels
     image: clickhouse/clickhouse-server:24.3-alpine
-    pull_policy: always
     container_name: clickhouse
     restart: unless-stopped
     expose:
@@ -300,9 +279,8 @@ services:
         max-size: 1m
         max-file: "1"
   langfuse-redis:
-    labels: *id001
+    labels: *watchtower-labels
     image: redis:7-alpine
-    pull_policy: always
     container_name: langfuse-redis
     restart: unless-stopped
     command:
@@ -329,9 +307,8 @@ services:
         max-size: 1m
         max-file: "1"
   langfuse-minio:
-    labels: *id001
+    labels: *watchtower-labels
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    pull_policy: always
     container_name: langfuse-minio
     restart: unless-stopped
     entrypoint: /bin/sh
@@ -356,13 +333,10 @@ services:
         max-size: 1m
         max-file: "1"
   langfuse:
-    labels: *id001
+    labels: *watchtower-labels
     image: langfuse/langfuse:3
-    pull_policy: always
     container_name: langfuse
     restart: unless-stopped
-    ports:
-      - 3000:3000
     expose:
       - 3000/tcp
     environment:
@@ -408,10 +382,7 @@ services:
         max-size: 1m
         max-file: "1"
   n8n-import:
-    labels: *id001
-    image: n8nio/n8n:latest
-    pull_policy: always
-    environment: *id002
+    <<: *n8n-base
     container_name: n8n-import
     entrypoint: /bin/sh
     command:
@@ -430,10 +401,7 @@ services:
     volumes:
       - ./n8n/backup:/backup
   n8n:
-    labels: *id001
-    image: n8nio/n8n:latest
-    pull_policy: always
-    environment: *id002
+    <<: *n8n-base
     container_name: n8n
     restart: unless-stopped
     expose:
@@ -446,9 +414,8 @@ services:
       n8n-import:
         condition: service_completed_successfully
   qdrant:
-    labels: *id001
+    labels: *watchtower-labels
     image: qdrant/qdrant
-    pull_policy: always
     container_name: qdrant
     restart: unless-stopped
     expose:
@@ -457,9 +424,8 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
   neo4j:
-    labels: *id001
+    labels: *watchtower-labels
     image: neo4j:5.20.0
-    pull_policy: always
     container_name: neo4j
     hostname: neo4j
     restart: unless-stopped
@@ -493,14 +459,10 @@ services:
         max-size: 1m
         max-file: "1"
   caddy:
-    labels: *id001
+    labels: *watchtower-labels
     container_name: caddy
     image: docker.io/library/caddy:2-alpine
-    pull_policy: always
     restart: unless-stopped
-    ports:
-      - 80:80/tcp
-      - 443:443/tcp
     expose:
       - 2019/tcp
       - 443/tcp
@@ -531,10 +493,9 @@ services:
         max-size: 1m
         max-file: "1"
   redis:
-    labels: *id001
+    labels: *watchtower-labels
     container_name: redis
     image: docker.io/valkey/valkey:8-alpine
-    pull_policy: always
     command: valkey-server --save 30 1 --loglevel warning
     restart: unless-stopped
     expose:
@@ -561,10 +522,9 @@ services:
       timeout: 10s
       retries: 10
   searxng:
-    labels: *id001
+    labels: *watchtower-labels
     container_name: searxng
     image: docker.io/searxng/searxng:latest
-    pull_policy: always
     restart: unless-stopped
     expose:
       - 8080/tcp

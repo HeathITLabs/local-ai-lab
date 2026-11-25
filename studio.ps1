@@ -25,7 +25,7 @@ param(
   [Parameter(Position = 1, ValueFromRemainingArguments = $true)][string[]]$Services,
   # up: skip the image builds (a plain restart after a reboot when nothing changed).
   [switch]$NoBuild,
-  # up: refresh base images from the registry while building (needs internet).
+  # up: refresh base images while building and pull newer registry images (needs internet).
   [switch]$Update,
   # up: how long to wait for READY.
   [int]$TimeoutMinutes = 10,
@@ -33,7 +33,8 @@ param(
   [int]$ContextLength = 0,
   # down: leave LM Studio's models loaded.
   [switch]$KeepModels,
-  [ValidateSet('none', 'cpu', 'gpu-nvidia', 'gpu-amd')][string]$ComposeProfile = 'none',
+  # auto-update also runs Watchtower. (The old cpu/gpu-* profiles left with Ollama and ComfyUI, which run natively.)
+  [ValidateSet('none', 'auto-update')][string]$ComposeProfile = 'none',
   [ValidateSet('public', 'private')][string]$Environment = 'public',
   # logs
   [switch]$Follow,
@@ -270,7 +271,9 @@ function Invoke-Up {
     Invoke-Native docker ($build + @('solo', 'studio'))
   }
   Write-Step 'Starting the localai stack'
-  Invoke-Native python @((Join-Path $LabDir 'start_services.py'), '--profile', $ComposeProfile, '--environment', $Environment)
+  $startArgs = @((Join-Path $LabDir 'start_services.py'), '--profile', $ComposeProfile, '--environment', $Environment)
+  if ($Update) { $startArgs += '--pull-latest' }
+  Invoke-Native python $startArgs
   Start-LmStudio
 
   Write-Step "Waiting for READY (up to $TimeoutMinutes min)"
