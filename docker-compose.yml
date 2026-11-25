@@ -134,8 +134,14 @@ services:
       - NEO4J_DATABASE=neo4j
       - ENABLE_NEO4J=true
       - SERIES_EDITOR_MODEL=${SERIES_EDITOR_MODEL:-}
-      - BOOK_AGENT_MODEL=${BOOK_AGENT_MODEL:-}
+      # Book Spine planning uses the resident qwen3.5-9b: qwable-9b beside it on the 12 GB GPU timed out (AP-05.1).
+      - BOOK_AGENT_MODEL=qwen3.5-9b
       - CANON_AUDIT_MODEL=${CANON_AUDIT_MODEL:-}
+      # Production settings formerly in ja-heath-studios/tools/compose.editorial.yml (H5, ja-heath-studios#10).
+      - FACTORY_WORKER_ENABLED=true
+      - SOLO_ENABLE_EDITORIAL_ANALYSIS=true
+      # Docker Desktop's host address; re-verify if Docker networking changes (AO-05).
+      - SOLO_EDITORIAL_DOCKER_HOST_IPV4=192.168.65.254
     volumes:
       - ../solo/data/db:/data/solo/db
       - ../solo-data/images:/data/solo/images
@@ -166,8 +172,51 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: 1m
-        max-file: "1"
+        max-size: 10m
+        max-file: "3"
+  studio:
+    # JA Heath Studios (H5, ja-heath-studios#10): web app on 4250, its API on loopback inside the container.
+    build:
+      context: ${STUDIO_BUILD_CONTEXT:-../ja-heath-studios}
+      dockerfile: Dockerfile
+    container_name: studio
+    restart: unless-stopped
+    ports:
+      - 4250:4250
+    environment:
+      - NODE_ENV=production
+      - STUDIO_API_PORT=4251
+      - SOLO_ENDPOINT=http://solo:3050
+      - SOLO_HEALTH_PATH=/api/health
+      # Browser links into Solo's own app (Chapter Workbench) use the stable LAN name.
+      - SOLO_APP_ENDPOINT=http://rainbow:3050
+      - LM_STUDIO_ENDPOINT=http://host.docker.internal:1234
+      - COMFYUI_ENDPOINT=http://host.docker.internal:8188
+      - N8N_ENDPOINT=http://n8n:5678
+      # The only non-loopback hosts the Studio API may call or link to.
+      - STUDIO_SERVICE_HOSTS=solo,n8n,host.docker.internal,rainbow
+      - STUDIO_TRUSTED_ORIGINS=${STUDIO_TRUSTED_ORIGINS:-http://rainbow:4250}
+      - STUDIO_ENABLE_EXECUTION=${STUDIO_ENABLE_EXECUTION:-true}
+    depends_on:
+      solo:
+        condition: service_started
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4250/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
   solo-postgres:
     labels: *id001
     image: postgres:15-alpine
