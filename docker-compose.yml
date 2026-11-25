@@ -97,7 +97,6 @@ services:
       # NODE_ENV, PORT and the /data/solo/* paths come from Solo's Dockerfile ENV.
       - ALLOWED_ORIGINS=*
       - LOG_LEVEL=info
-      - DB_PROVIDER=postgres
       - POSTGRES_HOST=solo-postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DATABASE=solo
