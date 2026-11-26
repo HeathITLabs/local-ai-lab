@@ -192,7 +192,7 @@ function Show-Status($checks) {
   $failed = @($checks | Where-Object { $_.Required -and -not $_.Ok })
   Write-Host ''
   if ($failed.Count -eq 0) {
-    Write-Host "READY  Studio http://${Host_}:4250   Solo http://${Host_}:3050" -ForegroundColor Green
+    Write-Host "READY  Studio http://${Host_}:4250   Solo API http://${Host_}:3050/api/v1" -ForegroundColor Green
   } else {
     Write-Host ("NOT READY  ({0})" -f (($failed | ForEach-Object { $_.Check }) -join ', ')) -ForegroundColor Red
   }

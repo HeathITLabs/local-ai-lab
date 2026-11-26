@@ -87,6 +87,7 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
     volumes:
       - open-webui:/app/backend/data
+  # Solo: API only on 3050 (/api/v1, docs at /api/v1/docs). Its Angular app was removed in solo#34; authors use Studio.
   solo:
     build:
       context: ${SOLO_BUILD_CONTEXT:-../solo}
